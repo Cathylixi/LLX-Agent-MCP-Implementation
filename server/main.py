@@ -1,31 +1,45 @@
 """
-LLX Agent — minimal MCP server (Phase 1).
+LLX Agent — MCP server (the "skills library").
 
-This is the "skills library". For now it runs locally over HTTP so we can prove
-the chain: local Claude Code -> auto MCP call -> skill runs -> returns result.
+Employees run local Claude Code; it auto-calls these skills over MCP. The skill
+code/data run here on the server (Azure Container Apps) and are never sent to the
+employee's machine, so employees can use the skills but cannot read them.
 
-Later this exact server moves to Azure Container Apps; only the URL in
-.mcp.json changes on the employee side.
+This file has 4 sections:
+  1. SERVER SETUP      - create the MCP server
+  2. DEMO SKILLS       - fake-data examples (search_news, get_project_status)
+  3. DATABASE SKILLS   - talk to the real Cosmos DB (db_list_collections)
+  4. ENTRY POINT       - start the server
 
-Run:
+Run locally:
     pip install -r ../requirements.txt
-    python main.py
-Then it serves at: http://127.0.0.1:8000/mcp
+    python main.py            # serves at http://127.0.0.1:8000/mcp
 """
 
 import os
 
 from mcp.server.fastmcp import FastMCP
 
-# The name shown to the MCP client.
-# host=0.0.0.0 so it's reachable inside a container; PORT is configurable
-# (Azure Container Apps / local both work). Locally still reachable at 127.0.0.1.
+
+# ---------------------------------------------------------------------------
+# 1. SERVER SETUP
+# ---------------------------------------------------------------------------
+# Create the MCP server. host=0.0.0.0 makes it reachable inside a container;
+# PORT is read from the environment (Azure sets the port, defaults to 8000
+# locally). Each function below decorated with @mcp.tool() becomes a "skill"
+# that Claude can discover and call automatically.
 mcp = FastMCP(
     "llx-skills",
     host="0.0.0.0",
     port=int(os.environ.get("PORT", "8000")),
 )
 
+
+# ---------------------------------------------------------------------------
+# 2. DEMO SKILLS (fake data)
+# ---------------------------------------------------------------------------
+# These return hard-coded data. They exist only to prove the chain works and
+# serve as templates. Replace them with real logic when ready.
 
 @mcp.tool()
 def search_news(keyword: str) -> str:
@@ -36,9 +50,10 @@ def search_news(keyword: str) -> str:
     Args:
         keyword: the topic to search news for (e.g. "AI", "finance").
     """
-    # Phase 1: return a fake line just to prove the chain works.
-    # Later, the real (confidential) logic lives here and runs in the cloud.
     print(f"[SKILL CALLED] search_news(keyword={keyword!r})", flush=True)
+    # NOTE: this overlaps with Claude's built-in web search, so Claude may
+    # prefer the built-in one. Internal skills (below) have no built-in
+    # equivalent and are always auto-selected.
     return (
         f"Today's news about '{keyword}': "
         f"[demo result] The LLX Agent MCP server is working!"
@@ -58,8 +73,8 @@ def get_project_status(project_code: str) -> dict:
     """
     print(f"[SKILL CALLED] get_project_status(project_code={project_code!r})", flush=True)
 
-    # Phase 1: fake in-memory data. Later this reads from the real internal
-    # source (database / SAS server) and runs in the cloud.
+    # Fake in-memory data for the demo. Later this can read from the database
+    # (see section 3) instead of this dictionary.
     fake_db = {
         "LLX-204": {
             "name": "Phase III TOC Automation",
@@ -87,6 +102,14 @@ def get_project_status(project_code: str) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# 3. DATABASE SKILLS (real Cosmos DB)
+# ---------------------------------------------------------------------------
+# These connect to the company's Azure Cosmos DB (MongoDB API), database
+# "llxdocument". The connection string is NEVER hard-coded here — it is read
+# from the MONGO_URI environment variable, which is set as an encrypted Azure
+# secret. That keeps the password out of the (public) source code.
+
 @mcp.tool()
 def db_list_collections() -> dict:
     """List the data collections available in the LLX document database.
@@ -98,13 +121,18 @@ def db_list_collections() -> dict:
     """
     print("[SKILL CALLED] db_list_collections()", flush=True)
 
+    # Read the secret connection string from the environment (set in Azure).
     uri = os.environ.get("MONGO_URI")
     if not uri:
         return {"error": "Database is not configured on the server (MONGO_URI missing)."}
 
     try:
+        # Import here (not at top) so the server still starts even if pymongo
+        # isn't installed locally; only this skill needs it.
         from pymongo import MongoClient
 
+        # Connect with an 8s timeout so a network problem fails fast instead
+        # of hanging.
         client = MongoClient(uri, serverSelectionTimeoutMS=8000)
         try:
             db = client["llxdocument"]
@@ -117,9 +145,13 @@ def db_list_collections() -> dict:
         finally:
             client.close()
     except Exception as e:
+        # Return the error as data so Claude can report it instead of crashing.
         return {"error": f"Could not connect to the database: {e}"}
 
 
+# ---------------------------------------------------------------------------
+# 4. ENTRY POINT
+# ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    # streamable-http transport => served at http://127.0.0.1:8000/mcp
+    # streamable-http transport => served at http://<host>:<port>/mcp
     mcp.run(transport="streamable-http")
