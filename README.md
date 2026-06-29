@@ -13,7 +13,7 @@ locally**, so employees can use the skills but cannot read them.
 | | |
 |---|---|
 | **Endpoint** | `https://llx-mcp.delightfuldesert-f5bbaa56.eastus.azurecontainerapps.io/mcp` |
-| **Skills** | `search_news`, `get_project_status` (demo / fake data) |
+| **Skills** | `search_news`, `get_project_status` (demo) · `db_list_collections` (live Cosmos DB) |
 | **Source (public GitHub)** | `Cathylixi/LLX-Agent-MCP-Implementation` |
 | **Azure** | RG `LLXSolutions` · app `llx-mcp` · ACR `cafa6fd6c51facr` · env `managedEnvironment-LLXSolutions-b380` (East US) |
 
@@ -71,9 +71,45 @@ az containerapp up --name llx-mcp --resource-group LLXSolutions --image cafa6fd6
 > **Why manual:** auto-deploy needs a "service principal", which the org account
 > `ai@llxsolutions.com` isn't allowed to create — so we build & deploy by hand.
 >
-> **Tag note:** we always reuse the tag `:v1`, so each deploy overwrites the last
-> (no version history). Bump to `:v2`, `:v3`, … in both commands if you want
-> rollback points.
+> **Tag note:** we always reuse the same tag (currently `:v2`), so each deploy
+> overwrites the last (no version history). Bump to `:v3`, `:v4`, … in both
+> commands if you want rollback points.
+
+## Connecting a database (Azure Cosmos DB)
+
+The server can query the company database server-side and return only the results,
+so employees never see the database address or password. Connected since 2026-06-29.
+
+- **Database:** Azure Cosmos DB (MongoDB API), database `llxdocument`,
+  cluster `llx-solutions-msft5`.
+- **Driver:** `pymongo[srv]` in `requirements.txt` (the `+srv` URI needs dnspython).
+- **Skill:** `db_list_collections` in `server/main.py` (section 3). It reads the
+  connection string from the `MONGO_URI` env var and lists the collections.
+- **Full write-up:** [`../workflow/connecting database.md`](../workflow/connecting%20database.md).
+
+**Golden rules:** (1) the connection string is a **secret** — it lives in an
+encrypted Azure secret, never in the code/GitHub; (2) expose **specific, read-only
+query skills**, never a generic "run any SQL" skill.
+
+### How it was deployed (run in Azure Cloud Shell)
+
+```bash
+# 1. build the image (includes pymongo[srv])
+az acr build --registry cafa6fd6c51facr --image llx-mcp:v2 https://github.com/Cathylixi/LLX-Agent-MCP-Implementation.git
+
+# 2. store the connection string as an encrypted secret
+#    (copy the value from AI-for-Word/backend/.env line 8; keep the single quotes)
+az containerapp secret set --name llx-mcp --resource-group LLXSolutions --secrets mongo-uri='<CONNECTION_STRING>'
+
+# 3. deploy the image AND wire the secret to the MONGO_URI env var
+az containerapp update --name llx-mcp --resource-group LLXSolutions --image cafa6fd6c51facr.azurecr.io/llx-mcp:v2 --set-env-vars MONGO_URI=secretref:mongo-uri
+```
+
+> To change the connection string later, re-run step 2 only (then restart a
+> revision). To add new DB query skills, edit `main.py` and redeploy (steps 1 + 3).
+>
+> **If the connection times out:** open the Cosmos DB in the portal → Networking →
+> allow access from Azure services / public Azure datacenters.
 
 ## Verify it's working
 
