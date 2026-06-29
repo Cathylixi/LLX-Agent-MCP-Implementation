@@ -1,61 +1,123 @@
-# MCP Implementation (Phase 1 — local test)
+# LLX Agent — MCP Skills Library
 
-A minimal MCP server (the "skills library") with one sample skill `search_news`.
-Goal: prove that local Claude Code can auto-call a skill over MCP.
+A confidential "skills library": employees use local Claude, which auto-calls these
+skills over MCP. The skill code/data run in the cloud and are **never downloaded
+locally**, so employees can use the skills but cannot read them.
 
-## Folder
+> **Full architecture & the 7-phase rollout plan:** see
+> [`../workflow/mcp structure.md`](../workflow/mcp%20structure.md). This README is
+> the operational guide (how to run, change, redeploy); that doc explains the *why*.
 
-```
-mcp implementation/
-├─ server/
-│  └─ main.py          # MCP server + the search_news skill
-├─ requirements.txt    # dependency: mcp
-├─ .mcp.json           # tells Claude Code to connect to the local server
-└─ README.md           # this file
-```
+## Status: ✅ Live on Azure (since 2026-06-29)
 
-## How to run
+| | |
+|---|---|
+| **Endpoint** | `https://llx-mcp.delightfuldesert-f5bbaa56.eastus.azurecontainerapps.io/mcp` |
+| **Skills** | `search_news`, `get_project_status` (demo / fake data) |
+| **Source (public GitHub)** | `Cathylixi/LLX-Agent-MCP-Implementation` |
+| **Azure** | RG `LLXSolutions` · app `llx-mcp` · ACR `cafa6fd6c51facr` · env `managedEnvironment-LLXSolutions-b380` (East US) |
 
-1. (Recommended) create a virtual environment:
-   ```
-   python -m venv .venv
-   .venv\Scripts\activate          # Windows PowerShell
-   ```
+## How employees connect
 
-2. Install the dependency:
-   ```
-   pip install -r requirements.txt
-   ```
+Put this `.mcp.json` in the folder where they open Claude Code. It holds only the
+URL — no skill content:
 
-3. Start the server (leave this terminal running):
-   ```
-   python server/main.py
-   ```
-   It serves at: `http://127.0.0.1:8000/mcp`
-
-4. Open Claude Code **in this folder** (`mcp implementation`) so it reads `.mcp.json`.
-   Approve the new MCP server if prompted. Check it connected with `/mcp`.
-
-## How to verify success
-
-In Claude Code, type:
-
-> find today's news about AI
-
-Claude should automatically call the `search_news` skill and reply with:
-
-> Today's news about 'AI': [demo result] The LLX Agent MCP server is working!
-
-✅ If you see that, the full chain works:
-local Claude → auto MCP call → skill runs → returns result.
-
-## What changes when we move to the cloud
-
-Nothing in the skill logic. We deploy `server/main.py` to Azure Container Apps,
-and the only edit on the employee side is the `url` in `.mcp.json`:
-
-```
-"url": "https://<your-azure-app>.azurecontainerapps.io/mcp"
+```json
+{ "mcpServers": { "llx-skills": {
+  "type": "http",
+  "url": "https://llx-mcp.delightfuldesert-f5bbaa56.eastus.azurecontainerapps.io/mcp"
+} } }
 ```
 
-(plus an auth token header, added in the security phase).
+Then just ask naturally and Claude auto-calls the matching skill.
+
+## The skills
+
+| Skill | Ask it like | Input | Returns |
+|---|---|---|---|
+| `get_project_status` | "what's the status of project LLX-204?" | `project_code` (e.g. `LLX-204`) | name, status, owner, deadline, progress % |
+| `search_news` | "find today's news about AI" | `keyword` | a news string (demo stub only) |
+
+> Demo data lives in `server/main.py`. `get_project_status` knows `LLX-204` and
+> `LLX-117`; anything else returns "Not Found". Real logic/data replaces these later.
+>
+> Note: `search_news` overlaps with Claude's built-in web search, so Claude may
+> prefer the built-in one. Internal skills like `get_project_status` (no built-in
+> equivalent) are always auto-selected — that's the normal case for real skills.
+
+## Project layout
+
+```
+server/main.py      # the MCP server + skill definitions  (edit skills here)
+requirements.txt    # dependency: mcp
+Dockerfile          # how Azure packages the server
+.mcp.json           # client config (points at the cloud endpoint)
+```
+
+## Change a skill & redeploy
+
+Editing GitHub does **NOT** auto-update Azure. The full loop:
+
+1. Edit `server/main.py`, commit, and push to GitHub.
+2. Open **Azure Cloud Shell**: go to <https://portal.azure.com>, click the `>_`
+   icon in the top bar, choose **Bash**.
+3. Run these two commands (no local Docker / CLI needed):
+
+```bash
+az acr build --registry cafa6fd6c51facr --image llx-mcp:v1 https://github.com/Cathylixi/LLX-Agent-MCP-Implementation.git
+az containerapp up --name llx-mcp --resource-group LLXSolutions --image cafa6fd6c51facr.azurecr.io/llx-mcp:v1 --ingress external --target-port 8000
+```
+
+> **Why manual:** auto-deploy needs a "service principal", which the org account
+> `ai@llxsolutions.com` isn't allowed to create — so we build & deploy by hand.
+>
+> **Tag note:** we always reuse the tag `:v1`, so each deploy overwrites the last
+> (no version history). Bump to `:v2`, `:v3`, … in both commands if you want
+> rollback points.
+
+## Verify it's working
+
+After deploying (or any time), check the live server with a quick MCP client:
+
+```bash
+pip install mcp        # once
+python - <<'PY'
+import asyncio
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+URL = "https://llx-mcp.delightfuldesert-f5bbaa56.eastus.azurecontainerapps.io/mcp"
+async def main():
+    async with streamablehttp_client(URL) as (r, w, _):
+        async with ClientSession(r, w) as s:
+            await s.initialize()
+            print([t.name for t in (await s.list_tools()).tools])
+            print((await s.call_tool("get_project_status", {"project_code": "LLX-204"})).content[0].text)
+asyncio.run(main())
+PY
+```
+
+Expect it to print the tool names and the LLX-204 status. (Or in Claude Code with
+the `.mcp.json` above, just ask for a project's status.)
+
+## ⚠️ Security gap (fix before real data)
+
+The endpoint has **no authentication** — anyone with the URL can call it.
+
+- ✅ Outsiders **cannot read** the skill code/prompts (those stay server-side).
+- ⚠️ But they **can call** the skills, **get the results**, see tool names, and burn cost.
+
+Fine for the fake-data demo. Once skills return real confidential data, add **token
+auth** so only employees can call them.
+
+## Local development (optional)
+
+To test changes on your own machine before deploying:
+
+```bash
+pip install -r requirements.txt
+python server/main.py          # serves at http://127.0.0.1:8000/mcp
+```
+
+Temporarily point `.mcp.json` at `http://127.0.0.1:8000/mcp`, open Claude Code in
+this folder, and try a skill. Restart the server after each code change (a stale
+server keeps the old port 8000 and your new skill won't show up).

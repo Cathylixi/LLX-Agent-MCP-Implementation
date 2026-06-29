@@ -87,6 +87,39 @@ def get_project_status(project_code: str) -> dict:
     }
 
 
+@mcp.tool()
+def db_list_collections() -> dict:
+    """List the data collections available in the LLX document database.
+
+    Use this to discover what internal data exists in the company database.
+    This is internal LLX data and has no public/web equivalent.
+
+    (Connectivity check: confirms the cloud server can reach the Cosmos DB.)
+    """
+    print("[SKILL CALLED] db_list_collections()", flush=True)
+
+    uri = os.environ.get("MONGO_URI")
+    if not uri:
+        return {"error": "Database is not configured on the server (MONGO_URI missing)."}
+
+    try:
+        from pymongo import MongoClient
+
+        client = MongoClient(uri, serverSelectionTimeoutMS=8000)
+        try:
+            db = client["llxdocument"]
+            collections = db.list_collection_names()
+            return {
+                "database": "llxdocument",
+                "collections": collections,
+                "count": len(collections),
+            }
+        finally:
+            client.close()
+    except Exception as e:
+        return {"error": f"Could not connect to the database: {e}"}
+
+
 if __name__ == "__main__":
     # streamable-http transport => served at http://127.0.0.1:8000/mcp
     mcp.run(transport="streamable-http")
