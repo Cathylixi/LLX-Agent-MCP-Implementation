@@ -20,11 +20,16 @@ import pkgutil
 
 from app import mcp
 import skills
+from nl_loader import load_nl_skills
 
-# Auto-discover: import every module in the skills/ package so each file's
-# @mcp.tool() decorator runs and registers its skill with the server.
+# Auto-discover CODE skills: import every .py module in the skills/ package so
+# each file's @mcp.tool() decorator runs and registers its skill.
 for _module in pkgutil.iter_modules(skills.__path__):
     importlib.import_module(f"skills.{_module.name}")
+
+# Auto-discover NATURAL-LANGUAGE skills: register every .md file in skills/ as
+# a tool that serves its instructions to the local Claude.
+load_nl_skills(mcp)
 
 if __name__ == "__main__":
     # streamable-http transport => served at http://<host>:<port>/mcp
