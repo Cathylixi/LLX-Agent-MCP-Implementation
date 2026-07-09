@@ -1,4 +1,4 @@
-"""Skill: db_list_collections — connects to the real Cosmos DB."""
+"""Code tools for the `database` skill — run on the server (DB key stays secret)."""
 
 import os
 

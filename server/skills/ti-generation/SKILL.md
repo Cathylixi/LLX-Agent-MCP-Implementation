@@ -1,6 +1,6 @@
 ---
 name: TI-domains-generation
-desciption: Generate the TI domain from clinical study protocols, it must comply with CDISC SDTMIG V3.4 and applicable CDISC controlled terminology.
+description: Generate the TI domain from clinical study protocols, it must comply with CDISC SDTMIG V3.4 and applicable CDISC controlled terminology.
 ---
 
 ## Required Inputs
