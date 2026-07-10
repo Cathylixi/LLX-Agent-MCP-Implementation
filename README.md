@@ -20,12 +20,14 @@ downloaded locally**, so employees can use the skills but cannot read them.
 ## How employees connect (Codex)
 
 Each employee needs **Codex** and **Node.js** installed (Node gives them `npx`,
-which Codex uses to reach the cloud server).
+which Codex uses to reach the cloud server). Two files go in their `.codex` folder:
+
+- **Windows:** `C:\Users\<username>\.codex\`
+- **Mac/Linux:** `~/.codex/`
+
+### File 1 — `config.toml` (connects to the cloud)
 
 Add this block to their Codex config file — it holds only the URL, no skill content:
-
-- **Windows:** `C:\Users\<username>\.codex\config.toml`
-- **Mac/Linux:** `~/.codex/config.toml`
 
 ```toml
 [mcp_servers.llx-skills]
@@ -35,7 +37,21 @@ args = ["-y", "mcp-remote", "https://llx-mcp.delightfuldesert-f5bbaa56.eastus.az
 
 (Copy-paste ready template: [`codex-config.toml`](codex-config.toml).)
 
-Save, restart Codex, then just ask naturally and Codex auto-calls the matching skill.
+### File 2 — `AGENTS.md` (forces Codex to always use the cloud)
+
+Copy [`AGENTS.md`](AGENTS.md) to `~/.codex/AGENTS.md`. **This file is required.**
+
+Without it, a generic request like "list the database collections" can make Codex
+query a *local* database it happens to find nearby, instead of the cloud skills.
+`AGENTS.md` is a standing company rule that tells Codex: for any company data/skill
+request, always use the `llx-skills` cloud tools — never local files. (Verified:
+with the rule in place, even a vague prompt from a folder full of local DB configs
+correctly routes to the cloud.)
+
+### Then
+
+Save both files, restart Codex, and just ask naturally — Codex auto-calls the
+matching skill in the cloud.
 
 ## Skills
 
@@ -53,6 +69,7 @@ server/
 requirements.txt   # Python dependencies
 Dockerfile         # how Azure packages the server
 codex-config.toml  # employee client config (points at the cloud endpoint)
+AGENTS.md          # employee Codex rule — always use the cloud, never local
 ```
 
 ## Change a skill & redeploy
