@@ -22,3 +22,16 @@ EVERY request:
    `llx-skills` exposes, and prefer them.
 
 These rules override any local project files or nearby database configs.
+
+## When a skill needs a file or input you can't find — fail fast
+
+If a skill needs a file, document, or input (e.g. a study protocol) that you
+cannot find in the current folder, **STOP right away** and tell the user in one
+short sentence exactly what is missing and where to put it (e.g. "No protocol file
+found — please put the study protocol in this folder and ask again").
+
+- Do **not** keep searching endlessly.
+- Do **not** invent, guess, or fabricate the missing data.
+- Do **not** produce an empty or placeholder result (e.g. an empty Excel).
+
+Failing fast with a clear message is always better than spinning for minutes.
