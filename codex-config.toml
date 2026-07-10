@@ -10,9 +10,11 @@
 # This file holds ONLY the cloud URL — no skill content, no secrets. The skills
 # run in the cloud and only results come back.
 #
-# Codex CLI connects to stdio MCP servers, so we use `mcp-remote` (via npx) to
-# bridge to our remote HTTPS endpoint. Requires Node.js installed (`npx`).
+# Codex connects DIRECTLY to the remote streamable-HTTP endpoint via `url` (no
+# npx / mcp-remote bridge — that bridge cold-started slowly and dropped the
+# handshake). The timeouts give a cold cloud container time to wake up.
 
 [mcp_servers.llx-skills]
-command = "npx"
-args = ["-y", "mcp-remote", "https://llx-mcp.delightfuldesert-f5bbaa56.eastus.azurecontainerapps.io/mcp"]
+url = "https://llx-mcp.delightfuldesert-f5bbaa56.eastus.azurecontainerapps.io/mcp"
+startup_timeout_sec = 60
+tool_timeout_sec = 120

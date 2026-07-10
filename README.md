@@ -19,8 +19,8 @@ downloaded locally**, so employees can use the skills but cannot read them.
 
 ## How employees connect (Codex)
 
-Each employee needs **Codex** and **Node.js** installed (Node gives them `npx`,
-which Codex uses to reach the cloud server). Two files go in their `.codex` folder:
+Each employee needs **Codex** (≥ 0.144, which can connect to a remote MCP server
+directly). Two files go in their `.codex` folder:
 
 - **Windows:** `C:\Users\<username>\.codex\`
 - **Mac/Linux:** `~/.codex/`
@@ -31,11 +31,17 @@ Add this block to their Codex config file — it holds only the URL, no skill co
 
 ```toml
 [mcp_servers.llx-skills]
-command = "npx"
-args = ["-y", "mcp-remote", "https://llx-mcp.delightfuldesert-f5bbaa56.eastus.azurecontainerapps.io/mcp"]
+url = "https://llx-mcp.delightfuldesert-f5bbaa56.eastus.azurecontainerapps.io/mcp"
+startup_timeout_sec = 60
+tool_timeout_sec = 120
 ```
 
 (Copy-paste ready template: [`codex-config.toml`](codex-config.toml).)
+
+> **Why `url` and not a `command`/`npx mcp-remote` bridge:** Codex ≥ 0.144 speaks
+> streamable HTTP directly. The npx bridge cold-started slowly and intermittently
+> dropped the handshake; the direct `url` is more reliable. The timeouts give the
+> cloud container time to wake from idle.
 
 ### File 2 — `AGENTS.md` (forces Codex to always use the cloud)
 
