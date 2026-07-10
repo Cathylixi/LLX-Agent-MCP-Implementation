@@ -1,8 +1,8 @@
 # LLX Agent — MCP Skills Library
 
-A confidential "skills library": employees use local Claude, which auto-calls these
-skills over MCP. The skill code/data run in the cloud and are **never downloaded
-locally**, so employees can use the skills but cannot read them.
+A confidential "skills library": employees use **Codex** locally, which auto-calls
+these skills over MCP. The skill code/data run in the cloud and are **never
+downloaded locally**, so employees can use the skills but cannot read them.
 
 > **Full architecture & the 7-phase rollout plan:** see
 > [`../workflow/mcp structure.md`](../workflow/mcp%20structure.md). This README is
@@ -17,19 +17,25 @@ locally**, so employees can use the skills but cannot read them.
 | **Source (public GitHub)** | `Cathylixi/LLX-Agent-MCP-Implementation` |
 | **Azure** | RG `LLXSolutions` · app `llx-mcp` · ACR `cafa6fd6c51facr` · env `managedEnvironment-LLXSolutions-b380` (East US) |
 
-## How employees connect
+## How employees connect (Codex)
 
-Put this `.mcp.json` in the folder where they open Claude Code. It holds only the
-URL — no skill content:
+Each employee needs **Codex** and **Node.js** installed (Node gives them `npx`,
+which Codex uses to reach the cloud server).
 
-```json
-{ "mcpServers": { "llx-skills": {
-  "type": "http",
-  "url": "https://llx-mcp.delightfuldesert-f5bbaa56.eastus.azurecontainerapps.io/mcp"
-} } }
+Add this block to their Codex config file — it holds only the URL, no skill content:
+
+- **Windows:** `C:\Users\<username>\.codex\config.toml`
+- **Mac/Linux:** `~/.codex/config.toml`
+
+```toml
+[mcp_servers.llx-skills]
+command = "npx"
+args = ["-y", "mcp-remote", "https://llx-mcp.delightfuldesert-f5bbaa56.eastus.azurecontainerapps.io/mcp"]
 ```
 
-Then just ask naturally and Claude auto-calls the matching skill.
+(Copy-paste ready template: [`codex-config.toml`](codex-config.toml).)
+
+Save, restart Codex, then just ask naturally and Codex auto-calls the matching skill.
 
 ## Skills
 
@@ -44,9 +50,9 @@ server/
   main.py        # entry point — auto-loads every skill (rarely touch)
   app.py         # the shared MCP server instance
   skills/        # ONE FILE PER SKILL  ← add / edit skills here
-requirements.txt # Python dependencies
-Dockerfile       # how Azure packages the server
-.mcp.json        # client config (points at the cloud endpoint)
+requirements.txt   # Python dependencies
+Dockerfile         # how Azure packages the server
+codex-config.toml  # employee client config (points at the cloud endpoint)
 ```
 
 ## Change a skill & redeploy
@@ -132,7 +138,7 @@ PY
 ```
 
 Expect it to print the available tool names and the database collections. (Or in
-Claude Code with the `.mcp.json` above, just ask it to list the collections.)
+Codex with the `config.toml` above, just ask it to list the collections.)
 
 ## ⚠️ Security gap (fix before real data)
 
@@ -153,6 +159,7 @@ pip install -r requirements.txt
 python server/main.py          # serves at http://127.0.0.1:8000/mcp
 ```
 
-Temporarily point `.mcp.json` at `http://127.0.0.1:8000/mcp`, open Claude Code in
-this folder, and try a skill. Restart the server after each code change (a stale
-server keeps the old port 8000 and your new skill won't show up).
+Temporarily point your Codex `config.toml` at `http://127.0.0.1:8000/mcp` (same
+block, just swap the URL), open Codex, and try a skill. Restart the server after
+each code change (a stale server keeps the old port 8000 and your new skill won't
+show up).

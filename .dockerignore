@@ -1,5 +1,5 @@
 .venv/
 __pycache__/
 *.pyc
-.mcp.json
+codex-config.toml
 README.md

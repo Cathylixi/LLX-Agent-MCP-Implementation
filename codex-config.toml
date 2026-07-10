@@ -1,0 +1,18 @@
+# LLX Agent — Codex client config (employee side)
+#
+# WHERE THIS GOES on each employee's computer:
+#   Windows : C:\Users\<username>\.codex\config.toml
+#   Mac/Linux: ~/.codex/config.toml
+#
+# If they already have a config.toml, just paste the [mcp_servers.llx-skills]
+# block below into it. Save, restart Codex, done.
+#
+# This file holds ONLY the cloud URL — no skill content, no secrets. The skills
+# run in the cloud and only results come back.
+#
+# Codex CLI connects to stdio MCP servers, so we use `mcp-remote` (via npx) to
+# bridge to our remote HTTPS endpoint. Requires Node.js installed (`npx`).
+
+[mcp_servers.llx-skills]
+command = "npx"
+args = ["-y", "mcp-remote", "https://llx-mcp.delightfuldesert-f5bbaa56.eastus.azurecontainerapps.io/mcp"]

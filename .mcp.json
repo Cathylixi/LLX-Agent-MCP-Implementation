@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "llx-skills": {
-      "type": "http",
-      "url": "https://llx-mcp.delightfuldesert-f5bbaa56.eastus.azurecontainerapps.io/mcp"
-    }
-  }
-}
