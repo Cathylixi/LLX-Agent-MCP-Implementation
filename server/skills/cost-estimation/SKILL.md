@@ -1,28 +1,27 @@
 ---
 name: cost-estimation
-description: Build a clinical study's cost/effort estimate from its protocol. Given only the protocol, directly produce an itemized SDTM + ADaM effort table (in hours). Use when the user asks for a cost estimate, effort estimate, bid, or quote for a clinical data project.
+description: Build a clinical study's full cost-estimate page from its protocol. Given only the protocol, produce the complete itemized cost table — every project section laid out, with SDTM and ADaM calculated and the rest listed as placeholders. Use when the user asks for a cost estimate, effort estimate, bid, or quote for a clinical data project.
 ---
 
 ## What this skill does
-The **only required input is the study protocol.** Given the protocol, directly
-produce the cost estimate — no need to ask the user anything else. By default the
-estimate covers the two protocol-driven deliverables, **SDTM** and **ADaM**: work
-out how many domains are needed and how complex each is, then apply the fixed
-effort tables and total it up.
+The **only required input is the study protocol.** Given the protocol, produce the
+**complete cost-estimate page** exactly like the tool's Excel output: every project
+section is laid out in order. Only **SDTM** and **ADaM** are actually calculated
+(their units are derived from the protocol); every other section is **listed as a
+placeholder** — its rows/subtotal are shown but left blank for the estimator to
+fill in later.
 
-**Input:** the study **protocol** (with its Schedule of Assessments). Optionally,
-the study **endpoints** and an **hourly rate** (to turn hours into money).
+**Input:** the study **protocol** (with its Schedule of Assessments). Optionally the
+study **endpoints** and an **hourly rate** (to turn hours into money).
 
-**Output:** a 7-column effort table — **Task | Unit | Cost Per Hour | Hours Per
-Unit | Cost Per Unit | Estimated Cost | Notes** — with an SDTM section and an ADaM
-section, a Subtotal for each, and a Grand Total. Values are in hours (Cost Per Hour
-= 1); if an hourly rate is given, multiply to get money.
+**Output:** the full 7-column cost page — **Task | Unit | Cost Per Hour | Hours Per
+Unit | Cost Per Unit | Estimated Cost | Notes** — with all sections (Step 4), a
+Subtotal per section, and a Grand Total. SDTM and ADaM are filled in and totaled;
+the rest are blank placeholders. Values are in hours (Cost Per Hour = 1); if an
+hourly rate is given, multiply to get money.
 
 If no protocol / Schedule of Assessments is provided, STOP and ask for the
 protocol — do not invent procedures.
-
-> Only produce the extra project sections in the last section ("Optional extra
-> projects") if the user explicitly asks for them. Otherwise just do SDTM + ADaM.
 
 ---
 
@@ -51,8 +50,7 @@ Rate complexity:
 
 Normalize at the domain level:
 1. **SV is always High** (move it to High, or add it as High if missing).
-2. **High overrides Medium** (a domain in both goes to High only; the sets are
-   mutually exclusive).
+2. **High overrides Medium** (a domain in both goes to High only; mutually exclusive).
 3. **Always add these 6 trial-design domains as Medium** if not present: TA, TE,
    TI, TV, TS, SE.
 4. Produce **sdtmHighCount**, **sdtmMediumCount**, **sdtmTotalDomains** (= unique domains).
@@ -70,20 +68,27 @@ Rate complexity:
 Normalize: **ADSL is always High** (add if missing); **High overrides Medium**.
 Produce **adamHighCount**, **adamMediumCount**, **adamTotalDomains**.
 
-## Step 4 — Build the effort table
+## Step 4 — Build the full cost page (all sections, in this order)
 Use these 7 columns for every row:
 
 | Task | Unit | Cost Per Hour | Hours Per Unit | Cost Per Unit | Estimated Cost | Notes |
 
-For every detail row:
-- **Cost Per Hour** = 1 (unless the user gave a rate — then use it).
-- **Hours Per Unit** = the fixed value from the tables below.
-- **Cost Per Unit** = Cost Per Hour × Hours Per Unit.
-- **Estimated Cost** = Unit × Cost Per Hour × Hours Per Unit (round to 2 decimals; a
-  blank Unit counts as 0).
-Each section ends with a **Subtotal** = sum of its rows' Estimated Cost.
+Row math (used for the CALCULATED sections): **Cost Per Hour** = 1 (or the user's
+rate); **Cost Per Unit** = Cost Per Hour × Hours Per Unit; **Estimated Cost** = Unit
+× Cost Per Hour × Hours Per Unit (round to 2 decimals). Each section ends with a
+**Subtotal** = sum of its Estimated Cost cells. Lay the sections out in THIS order:
 
-### SDTM section
+### 1. Statistical Analysis Plan and Shells Development  *(listed only — leave Unit and Estimated Cost blank)*
+| Task | Hours Per Unit |
+|---|---|
+| Statistical Analysis Plan Draft 1 | 40 |
+| Statistical Analysis Plan Draft 2 | 30 |
+| Statistical Analysis Plan Final | 20 |
+| Analysis Shells Development | 60 |
+| Mock Tables, Listings, and Figures | 40 |
+Then a blank **Subtotal**.
+
+### 2. SDTM Datasets Production and Validation  *(CALCULATED)*
 | Task | Unit | Hours Per Unit |
 |---|---|---|
 | SDTM Annotated CRFs (aCRF) | 1 | 32 |
@@ -95,11 +100,10 @@ Each section ends with a **Subtotal** = sum of its rows' Estimated Cost.
 | SDTM Reviewer's Guide | 1 | 32 |
 | SDTM Define.xml | 1 | 32 |
 | SDTM Dataset File xpt Conversion and Review | sdtmTotalDomains | 0.2 |
+Notes: High domain names on Specs (High) (joined by "/"), Medium names on Specs
+(Medium), all domain names on the xpt row. Then a **Subtotal** = sum.
 
-Notes: High domain names on the Specs (High) row (joined by "/"), Medium names on
-Specs (Medium), all domain names on the xpt row.
-
-### ADaM section
+### 3. ADaM Datasets Production and Validation  *(CALCULATED)*
 | Task | Unit | Hours Per Unit |
 |---|---|---|
 | ADaM Dataset Specs (High Complexity) | adamHighCount | 4 |
@@ -111,34 +115,39 @@ Specs (Medium), all domain names on the xpt row.
 | ADaM Define.xml | 1 | 40 |
 | ADaM Dataset Program xpt Conversion and Review | adamTotalDomains | 0.3 |
 | ADaM Program txt Conversion and Review | adamTotalDomains | 0.2 |
-
 Notes: High domain names on Specs (High), Medium names on Specs (Medium), all ADaM
-domain names on the xpt and txt rows.
+domain names on the xpt and txt rows. Then a **Subtotal** = sum.
+
+### 4–10. The remaining projects  *(listed only — a title row + a blank Subtotal each)*
+Add each of these as a titled section with an empty Subtotal (no line items, nothing
+calculated):
+4. Tables, Figures, and Listings Development
+5. Interim Analysis
+6. Final Analysis
+7. DSUR First Time
+8. DSUR Rerun
+9. DSMB/IDMC First Time
+10. DSMB Rerun
+
+### Fixed trailing sections  *(always listed — title + blank Subtotal each)*
+- License Fees
+- Adhoc Analysis
+- Project Management/Administration (12 Months)
 
 ## Step 5 — Grand Total and presentation
-- **Grand Total** = SDTM Subtotal + ADaM Subtotal (plus any optional sections).
-- Present the whole 7-column table with both sections, their subtotals, and the
-  grand total.
+- **Grand Total** = the sum of every section's Subtotal (only SDTM and ADaM have
+  values; the placeholder sections contribute nothing until filled in).
+- Present the entire 7-column page with every section above, each subtotal, and the
+  grand total. Keep the blank placeholder sections visible so the estimator can fill
+  them in.
 - Values are in **hours** (Cost Per Hour = 1). If the user gave an hourly rate,
   multiply to show dollars.
 
 ---
 
-## Optional extra projects (only if the user explicitly asks)
-The protocol does not drive these — include a section only when the user requests
-it. Each ends with its own Subtotal (added into the Grand Total).
-
-- **Statistical Analysis Plan and Shells Development** — line items (Hours Per Unit,
-  Unit 1 each): SAP Draft 1 = 40, SAP Draft 2 = 30, SAP Final = 20, Analysis Shells
-  Development = 60, Mock Tables/Listings/Figures = 40.
-- **SDTM Data Transfer (N times)** — Production and Validation: first 2 times (Unit
-  2 × 25h) + last (N−2) times (Unit N−2 × 12.5h).
-- **ADaM Data Transfer (N times)** — first 2 times (Unit 2 × 15h) + last (N−2) times
-  (Unit N−2 × 7.5h).
-- **Tables, Figures, and Listings Development / Interim Analysis / Final Analysis /
-  DSUR First Time / DSMB(IDMC) First Time / DSUR Rerun (N times) / DSMB Rerun (N
-  times)** — no predefined line items; add a titled section with a Subtotal to be
-  filled in manually.
-- **Fixed trailing sections** (add only if the user wants the full quote layout):
-  License Fees, Adhoc Analysis, Project Management/Administration (12 Months) — each
-  a titled section with a manual Subtotal.
+## Optional: Data Transfer sub-blocks (only if the user gives a transfer count N)
+Inside the SDTM or ADaM section, if the user specifies "Data Transfer Times = N":
+- **SDTM Dataset Transfer (N times)**: first 2 times (Unit 2 × 25h) + last (N−2)
+  times (Unit N−2 × 12.5h), with its own Subtotal.
+- **ADAM Dataset Transfer (N times)**: first 2 times (Unit 2 × 15h) + last (N−2)
+  times (Unit N−2 × 7.5h), with its own Subtotal.
