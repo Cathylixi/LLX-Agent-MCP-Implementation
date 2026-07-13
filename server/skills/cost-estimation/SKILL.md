@@ -9,6 +9,15 @@ hours) the SDTM and ADaM deliverables will take, and present an itemized estimat
 with subtotals and a grand total. The effort is driven by how many SDTM/ADaM
 domains are needed and how complex each one is.
 
+**Input:** the study's Schedule of Assessments (the procedures × visits grid, from
+the protocol or CRF). Optionally the study endpoints (primary/secondary/safety,
+which sharpen the ADaM choices) and an hourly rate (to convert hours to money).
+
+**Output:** two itemized effort tables — one for SDTM, one for ADaM — where each
+line item shows its quantity × hours, plus a subtotal per table and a grand total
+(in hours). Each High/Medium line also notes which domains it covers. If an hourly
+rate is given, the grand total is also shown as a dollar figure.
+
 ## Required inputs
 - The study's **Schedule of Assessments** (the grid listing every procedure/test
   and the visits), from the protocol or CRF.
