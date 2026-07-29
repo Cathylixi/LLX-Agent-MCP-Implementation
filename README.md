@@ -61,9 +61,19 @@ matching skill in the cloud.
 
 ## Skills
 
-Each skill is its own file in `server/skills/`. `server/main.py` auto-loads every
-file in that folder at startup, so **adding a skill = drop a new `.py` file in
-`server/skills/`** (copy an existing one as a template) — nothing else to edit.
+Each skill is its own **folder** in `server/skills/` (Claude Agent Skills
+layout: `SKILL.md` + optional `*.py` code tools). `server/skill_loader.py`
+auto-loads every folder at startup — **adding a skill = new folder with a
+`SKILL.md`** (copy `_example/` as a template) — nothing else to edit.
+
+Current skills:
+
+| Folder | What it does |
+|---|---|
+| `describe-database` | Explains what data is in the company Cosmos DB (NL + a `db_list_collections` code tool) |
+| `cost-estimation` | Protocol → full itemized clinical-data cost-estimate table (NL only) |
+| `trial-design-generation` | Protocol → TA/TE/TV/TS/TI trial-design domains per SDTMIG v3.4 (NL only) |
+| `crf-annotation` | Blank CRF → SDTM Domain/Variable mapping + annotation placement (NL + 12 code tools wrapping an embedded SDTMIG/pattern knowledge base) |
 
 ## Project layout
 
@@ -71,7 +81,8 @@ file in that folder at startup, so **adding a skill = drop a new `.py` file in
 server/
   main.py        # entry point — auto-loads every skill (rarely touch)
   app.py         # the shared MCP server instance
-  skills/        # ONE FILE PER SKILL  ← add / edit skills here
+  skill_loader.py # loads each skills/ folder's SKILL.md + *.py
+  skills/        # ONE FOLDER PER SKILL  ← add / edit skills here
 requirements.txt   # Python dependencies
 Dockerfile         # how Azure packages the server
 codex-config.toml  # employee client config (points at the cloud endpoint)
@@ -99,9 +110,19 @@ az containerapp update --name llx-mcp --resource-group LLXSolutions --image cafa
 > **Why manual:** auto-deploy needs a "service principal", which the org account
 > `ai@llxsolutions.com` isn't allowed to create — so we build & deploy by hand.
 >
-> **Tag note:** we always reuse the same tag (currently `:v2`), so each deploy
-> overwrites the last (no version history). Bump to `:v3`, `:v4`, … in both
-> commands if you want rollback points.
+> **Tag note:** each redeploy bumps the tag (`:v2`, `:v3`, … currently `:v7`)
+> so there's a rollback point if a build turns out broken — check the new
+> revision's status in **Container Apps → llx-mcp → Revisions and replicas**
+> before assuming a deploy worked; `provisioningState: Succeeded` on the
+> `containerapp update` command does NOT by itself mean the new revision came
+> up healthy (it can still crash-loop and fail to become the active revision).
+
+> **`requirements.txt` gotcha:** `mcp` is pinned to `1.28.1`. Don't remove the
+> version pin — an unpinned `mcp` install once pulled in `mcp 2.0.0`, which
+> restructured the package and broke `from mcp.server.fastmcp import FastMCP`
+> in `app.py`, crash-looping every replica with
+> `ModuleNotFoundError: No module named 'mcp.server.fastmcp'` until it was
+> re-pinned.
 
 ## Connecting a database (Azure Cosmos DB)
 

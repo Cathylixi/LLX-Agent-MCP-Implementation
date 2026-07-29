@@ -18,3 +18,16 @@
 url = "https://llx-mcp.delightfuldesert-f5bbaa56.eastus.azurecontainerapps.io/mcp"
 startup_timeout_sec = 60
 tool_timeout_sec = 120
+
+# --- Windows users only: add these two lines too (top-level, outside any
+# [section] — e.g. right above this comment block) ---
+#
+# Some skills (e.g. crf-annotation) need Codex to run local commands on your
+# own machine (reading/writing a PDF). On Windows, Codex's sandbox can
+# otherwise silently block this with "CreateProcessAsUserW failed: Access is
+# denied" and never even ask you — a known Codex-on-Windows sandbox bug, not
+# something wrong with your setup. These two lines make it ask you for
+# permission instead of auto-refusing:
+#
+# approval_policy = "on-request"
+# approvals_reviewer = "user"
