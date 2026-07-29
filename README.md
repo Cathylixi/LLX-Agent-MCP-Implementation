@@ -94,6 +94,7 @@ server/
   main.py        # entry point — auto-loads every skill (rarely touch)
   app.py         # the shared MCP server instance
   skill_loader.py # loads each skills/ folder's SKILL.md + *.py
+  llm.py         # cloud LLM call wrapper — runs a NL skill's instructions
   skills/        # ONE FOLDER PER SKILL  ← add / edit skills here
 requirements.txt   # Python dependencies
 Dockerfile         # how Azure packages the server
@@ -111,9 +112,11 @@ Editing GitHub does **NOT** auto-update Azure. The full loop:
 3. Run these two commands (no local Docker / CLI needed):
 
 ```bash
-az acr build --registry cafa6fd6c51facr --image llx-mcp:v2 https://github.com/Cathylixi/LLX-Agent-MCP-Implementation.git
-az containerapp update --name llx-mcp --resource-group LLXSolutions --image cafa6fd6c51facr.azurecr.io/llx-mcp:v2
+az acr build --registry cafa6fd6c51facr --image llx-mcp:v8 https://github.com/Cathylixi/LLX-Agent-MCP-Implementation.git
+az containerapp update --name llx-mcp --resource-group LLXSolutions --image cafa6fd6c51facr.azurecr.io/llx-mcp:v8
 ```
+
+(bump `v8` to whatever the next tag is — see the tag note below)
 
 > **Why `update` (not `up`):** `update` only swaps the image and **keeps the
 > existing ingress and secrets/env vars** (like the database `MONGO_URI`). Use it
@@ -144,8 +147,9 @@ so employees never see the database address or password. Connected since 2026-06
 - **Database:** Azure Cosmos DB (MongoDB API), database `llxdocument`,
   cluster `llx-solutions-msft5`.
 - **Driver:** `pymongo[srv]` in `requirements.txt` (the `+srv` URI needs dnspython).
-- **Skill:** the database skill is a file in `server/skills/`. It reads the
-  connection string from the `MONGO_URI` env var and queries the DB server-side.
+- **Skill:** the database skill is the `describe-database` folder in
+  `server/skills/` (its `tools.py` reads the connection string from the
+  `MONGO_URI` env var and queries the DB server-side).
 - **Full write-up:** [`../workflow/connecting database.md`](../workflow/connecting%20database.md).
 
 **Golden rules:** (1) the connection string is a **secret** — it lives in an
