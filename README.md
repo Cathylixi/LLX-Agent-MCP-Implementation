@@ -36,7 +36,19 @@ startup_timeout_sec = 60
 tool_timeout_sec = 120
 ```
 
-(Copy-paste ready template: [`codex-config.toml`](codex-config.toml).)
+**Windows users, also add these two top-level lines** (outside any `[section]`
+— e.g. above the block above): some skills (e.g. `crf-annotation`) need Codex
+to run local commands on your own machine, and on Windows, Codex's sandbox can
+otherwise silently block this (`CreateProcessAsUserW failed: Access is
+denied`) without ever asking you — a known Codex-on-Windows sandbox bug. These
+two lines make it ask for permission instead of auto-refusing:
+
+```toml
+approval_policy = "on-request"
+approvals_reviewer = "user"
+```
+
+(Copy-paste ready template with both blocks: [`codex-config.toml`](codex-config.toml).)
 
 > **Why `url` and not a `command`/`npx mcp-remote` bridge:** Codex ≥ 0.144 speaks
 > streamable HTTP directly. The npx bridge cold-started slowly and intermittently
