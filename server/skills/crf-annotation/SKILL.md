@@ -27,6 +27,16 @@ fallback rules below (Section 5.2) — don't guess.
 
 ## 0. Extract and audit the PDF text (you do this locally)
 
+**Prerequisite check — do this first, don't ask the user to sort it out:**
+Pick **one** Python interpreter to run everything in this skill (don't split
+work across two interpreters just because one happens to already have one
+library). Check whether `fitz` (PyMuPDF) and `pdfplumber` both import cleanly
+in that interpreter. If either is missing, run
+`pip install pymupdf pdfplumber` into that same interpreter yourself and
+re-check — don't stop to plan or ask permission for this, it's a normal setup
+step. Only if the install itself fails (no pip, no network, no Python at all)
+should you stop and tell the user in one sentence what's missing.
+
 Before mapping anything, extract and audit the CRF PDF text yourself, two-pass:
 
 1. **Primary extraction: PyMuPDF (`fitz`).** Use it for word-level and
