@@ -17,6 +17,7 @@ Each subfolder of skills/ is a skill bundle, like Claude's Skills:
 import glob
 import importlib.util
 import os
+import sys
 
 _SKILLS_DIR = os.path.join(os.path.dirname(__file__), "skills")
 
@@ -80,8 +81,22 @@ def load_skills(mcp):
         if not os.path.isdir(folder) or entry.startswith(("_", ".")):
             continue
 
+        # Let this skill's own files import each other as plain sibling
+        # modules (e.g. `import sdtmig_metadata` from another file in the same
+        # folder). Appended (not inserted at position 0) so it can't shadow
+        # stdlib or another skill's module of the same name.
+        if folder not in sys.path:
+            sys.path.append(folder)
+
         # 1. load any code tools in this skill folder (they self-register)
         for py in sorted(glob.glob(os.path.join(folder, "*.py"))):
+            stem = os.path.splitext(os.path.basename(py))[0]
+            if stem in sys.modules:
+                # Already imported as a side effect of a sibling file's own
+                # `import` statement (e.g. the skill's main module importing
+                # its helper modules) - loading it again would just re-parse
+                # the same file for no benefit.
+                continue
             _load_code_file(py)
 
         # 2. load SKILL.md as a natural-language skill
