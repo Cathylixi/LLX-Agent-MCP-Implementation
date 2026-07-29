@@ -13,7 +13,7 @@ downloaded locally**, so employees can use the skills but cannot read them.
 | | |
 |---|---|
 | **Endpoint** | `https://llx-mcp.delightfuldesert-f5bbaa56.eastus.azurecontainerapps.io/mcp` |
-| **Skills** | each skill is its own file in `server/skills/` (auto-loaded) |
+| **Skills** | each skill is its own folder in `server/skills/` (auto-loaded); see [Skills](#skills) below |
 | **Source (public GitHub)** | `Cathylixi/LLX-Agent-MCP-Implementation` |
 | **Azure** | RG `LLXSolutions` · app `llx-mcp` · ACR `cafa6fd6c51facr` · env `managedEnvironment-LLXSolutions-b380` (East US) |
 
