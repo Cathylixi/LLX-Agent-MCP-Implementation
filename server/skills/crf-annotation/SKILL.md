@@ -279,7 +279,22 @@ convert the final rectangle back to the unrotated PDF coordinate system before
 creating the annotation, and set `rotate=90` on the FreeText annotation.
 Verify visually with a rendered PNG.
 
-### 7.9 — PyMuPDF FreeText implementation (you do this locally)
+### 7.9 — Implementation: create real annotation objects (you do this locally)
+
+**Whichever runtime actually works in your sandbox, use it — the requirement
+is the same either way: every annotation must be a real, independent PDF
+annotation object (selectable, movable, editable), never text/shapes drawn
+directly onto the page content stream.** A flattened box that merely *looks*
+right is a QC failure (see Section 8, item 10) even if the colors and
+placement are perfect. Known issue: on Windows, spawning a Python process from
+inside Codex's sandbox can fail with `CreateProcessAsUserW failed` regardless
+of what's installed — this is a documented Codex-on-Windows sandbox bug, not
+something fixable by installing packages. If Python won't launch, don't keep
+retrying it — switch to Option B, which runs through the same in-process
+JS execution path Codex already uses successfully for other steps.
+
+**Option A — PyMuPDF (Python), when Python execution is available:**
+
 Don't pass `border_color` to `add_freetext_annot()` when `richtext=False`
 (PyMuPDF 1.28 raises `ValueError`). Use one FreeText annotation for text +
 fill + border, then call `set_border()` on that same object — don't add a
@@ -303,6 +318,62 @@ text_annot = page.add_freetext_annot(
 text_annot.set_border(width=0.7, dashes=[3, 2] if dashed else None)
 text_annot.update()
 ```
+
+**Option B — pdf-lib (Node.js), verified working when Python is not available:**
+
+`pdf-lib`'s own `drawRectangle()`/`drawText()` draw permanently onto the page
+content stream — do **not** use them for annotations. Instead, construct the
+FreeText annotation dictionary by hand (with a real `/AP` appearance stream
+for the fill/border/text so it renders correctly in every viewer, not only
+ones that auto-generate appearance from `/DA`), and push it onto the page's
+`/Annots` array:
+
+```js
+import { PDFName, PDFString } from 'pdf-lib';
+
+function makeAnnot(context, page, { x0, y0, x1, y1, text, dashed, rgbColor, font, fontSize = 8 }) {
+  const w = x1 - x0, h = y1 - y0;
+  const [r, g, b] = rgbColor;
+  const dashOp = dashed ? '[3 2] 0 d' : '[] 0 d';
+  const content =
+    `q\n${r} ${g} ${b} rg\n0 0 ${w} ${h} re f\n` +
+    `0 0 0 RG ${dashOp} 0.7 w\n0.35 0.35 ${w - 0.7} ${h - 0.7} re S\n` +
+    `0 0 0 rg\nBT /Helv ${fontSize} Tf 2 ${h - fontSize - 1} Td (${text}) Tj ET\nQ`;
+
+  const apStream = context.stream(content, {
+    Type: 'XObject', Subtype: 'Form', BBox: [0, 0, w, h],
+    Resources: { Font: { Helv: font.ref } },
+  });
+  const apRef = context.register(apStream);
+
+  const bs = dashed
+    ? { W: 0.7, S: PDFName.of('D'), D: [3, 2] }
+    : { W: 0.7, S: PDFName.of('S') };
+
+  const dict = context.obj({
+    Type: PDFName.of('Annot'), Subtype: PDFName.of('FreeText'),
+    Rect: [x0, y0, x1, y1], Contents: PDFString.of(text),
+    DA: PDFString.of('/Helv 8 Tf 0 g'), BS: bs, F: 4, AP: { N: apRef },
+  });
+  const ref = context.register(dict);
+
+  let annots = page.node.lookup(PDFName.of('Annots'));
+  if (!annots) { annots = context.obj([]); page.node.set(PDFName.of('Annots'), annots); }
+  annots.push(ref);
+}
+```
+
+Fill color for `rgbColor` follows the page-order Domain colors (Section 6).
+Y-coordinates: `pdf-lib` pages are bottom-left origin like raw PDF, so if your
+extracted coordinates are top-left origin, convert with
+`y_pdf = page.getHeight() - y_top_left` before calling this.
+
+**Verify before reporting done (either option):** after saving, re-open the
+output and count real annotation objects — PyMuPDF:
+`sum(len(list(p.annots())) for p in doc)`; pdf-lib:
+sum of `page.node.lookup(PDFName.of('Annots'))` array lengths across pages.
+This count must be roughly equal to the number of annotations you placed. If
+it's 0, you flattened instead of annotating — do not report success.
 
 Fallback only: if a rotated page's rendered appearance is missing the border,
 add a same-bbox Square/Rect border for that page only, and note that it
@@ -329,7 +400,12 @@ one annotation in a PDF editor moves text/fill/border together.
 8. Constants/when-then/RELREC/`[NOT SUBMITTED]` are dashed; submitted
    Variables are solid.
 9. Findings context and result annotations are split, never combined.
-10. Annotations are visible/searchable (or traceable if flattened).
+10. Annotations are real, independent PDF annotation objects — visible,
+    searchable, and individually selectable/movable/editable in a PDF viewer.
+    Count them programmatically (Section 7.9) before reporting success; a
+    non-zero count close to the number of annotations placed is required.
+    Text/shapes drawn directly onto the page content stream ("flattened") do
+    not satisfy this — that is a failure, not an acceptable fallback.
 11. RELREC only where explicitly collected/displayed (5.1).
 
 ---
