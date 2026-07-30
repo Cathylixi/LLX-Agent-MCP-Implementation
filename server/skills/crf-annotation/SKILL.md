@@ -259,6 +259,20 @@ Use word-level extraction (`page.get_text("words")` or
 Normalize text, match exact labels first then fuzzy/partial, and record a
 missing source box as a placement issue, not a mapping failure.
 
+**`source_bbox` must be a tight box around only the words that make up the
+question's own text — nothing else.** Do not union in trailing whitespace, a
+neighboring checkbox/YES-NO column, or the rest of the table row. Here's
+exactly why this matters: the placement tools compute the "right" position as
+`source_bbox`'s right edge + ~6 points (see the `_candidate_box_from_anchor`
+math behind `recommend_annotation_box`, Section 7.6/7.9) — if `source_bbox` is
+too wide (e.g. it stretches across the whole row instead of stopping at the
+end of the question text), the annotation lands far out past the checkboxes
+instead of right next to the question. This exact mistake has happened before
+— build `source_bbox` as the union of only the word-level boxes belonging to
+that specific question's own text span, and verify visually (render a sample
+page) that annotations land immediately next to their question, not pushed to
+a far margin.
+
 ### 7.5 — Metadata table extraction (you do this locally)
 Don't parse metadata tables from plain `splitlines()` text — narrow columns
 split words/dates across fragments (`Randomizatio n date`, `DD/MMM/Y YYY`).
