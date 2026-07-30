@@ -188,6 +188,12 @@ simply lacks a main-domain Variable — use a supplemental qualifier (`QNAM in
 SUPPXX`, or a specific reviewed QNAM like `VISITTYP in SUPPSV` when available)
 and flag it for supplemental-qualifier review instead.
 
+**Every extracted question must end up in exactly one of three buckets:**
+mapped to a main-domain Variable, mapped to `SUPPXX` with a specific QNAM, or
+marked `[NOT SUBMITTED]` based on a cloud tool's judgment — not your own
+unassisted guess. There is no fourth bucket: don't leave a set of fields in an
+"unmapped, still pending" pile in your final report.
+
 ### 5.3 Scoring
 `score = 0.75 × token_overlap + 0.25 × fuzzy_string_ratio`, with a boost when
 overlap ≥ 0.66 and ≥ 2 tokens match. Default `min_score` is 0.82 — only
@@ -201,6 +207,11 @@ For VS, EG, LB, TR, TU, RS, CV: call `findings_testcd_annotations` (e.g.
 "Systolic Blood Pressure" → `VSTESTCD = SYSBP` context). Pass
 `include_result_variables=True` to also get the result variable (`VSORRES`,
 `VSORRESU`).
+
+Count how many questions on this CRF belong to a Findings domain (VS, EG, LB,
+TR, TU, RS, CV), and count how many times you actually called
+`findings_testcd_annotations`. These two numbers must match — report both,
+don't assume you covered them all.
 
 ### 5.5 Domain label retention
 Once Step 1 approves a Domain for a page, Step 2 must never delete, hide, or
@@ -272,6 +283,17 @@ Domain label boxes must contain the full `DOMAIN (Dataset Label)` text — widen
 or wrap rather than let text/fill spill outside the border. Pass your
 extracted `pdf_text_bboxes` and `existing_annotation_bboxes` to the cloud
 tools so they can avoid covering CRF content and avoid overlapping each other.
+
+**`source_bbox`, `pdf_text_bboxes`, and `existing_annotation_bboxes` must be
+your actual locally-extracted coordinates — never fabricated or substituted to
+force a pre-decided layout** (e.g. routing every annotation into a dedicated
+margin column by claiming the source question is somewhere it isn't, or by
+telling the tool the entire original CRF area is blocked). If real placements
+collide, resolve it per Section 7.9's `clipped_risk` guidance or the tool's
+own `placement_status` (widen the box, try another direction, or flag for
+manual review) — do not lie to the tool to get an answer you already decided
+on. Reusing an already-computed placement for a genuinely identical repeated
+page layout is fine; fabricating the inputs is not.
 
 ### 7.8 — Page rotation (you do this locally)
 For `/Rotate 90` pages, compute placement in the displayed coordinate system,
@@ -375,6 +397,13 @@ sum of `page.node.lookup(PDFName.of('Annots'))` array lengths across pages.
 This count must be roughly equal to the number of annotations you placed. If
 it's 0, you flattened instead of annotating — do not report success.
 
+Also compute, for every annotation, the distance between its final bbox and
+its true `source_bbox`. Report how many exceed 150 points (the mapper's own
+configured `max_distance_from_source`, even though the placement algorithm
+itself doesn't currently enforce it) — a high count means annotations drifted
+away from their questions and placement needs to be redone honestly, not
+reported as done.
+
 Fallback only: if a rotated page's rendered appearance is missing the border,
 add a same-bbox Square/Rect border for that page only, and note that it
 creates two editable objects. After writing annotations, render representative
@@ -384,6 +413,11 @@ one annotation in a PDF editor moves text/fill/border together.
 ---
 
 ## 8. QC checklist (you run this locally, as the final pass)
+
+For each numbered item below, state concretely how you verified it (a count,
+a measurement, a rendered check) — not just "passed." If an item isn't fully
+satisfied, report exactly how many/which ones failed rather than declaring
+overall success.
 
 1. Every in-scope page reviewed, including continuation pages.
 2. Skipped pages have a documented reason (cover, TOC, schedule, metadata,
