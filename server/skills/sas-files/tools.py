@@ -74,3 +74,61 @@ def get_sas_file_download_url(filename: str) -> dict:
         }
     except Exception as e:
         return {"error": f"Could not generate download link for {filename!r}: {e}"}
+
+
+def _json_safe(value):
+    """Convert one pandas/numpy cell value into something JSON-serializable."""
+    import math
+
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    if hasattr(value, "isoformat"):  # datetime / Timestamp
+        return value.isoformat()
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    return value
+
+
+@mcp.tool()
+def preview_sas_file(filename: str, rows: int = 20) -> dict:
+    """Read the actual contents of a SAS data file: its column names and the first N rows.
+
+    Use this whenever the user wants to see what's INSIDE a SAS file (not just
+    its name/size) — e.g. "what columns does dm have", "show me some ae rows".
+    filename must exactly match a name returned by list_sas_files. The file is
+    read on the server and only the requested rows are returned — the full
+    file never has to be downloaded locally.
+    """
+    print(f"[SKILL CALLED] preview_sas_file({filename!r}, rows={rows!r})", flush=True)
+
+    rows = max(1, min(rows, 500))  # keep responses (and server memory) bounded
+
+    container, error = _get_container_client()
+    if error:
+        return {"error": error}
+
+    try:
+        import io
+
+        import pandas as pd
+
+        blob_client = container.get_blob_client(filename)
+        raw = blob_client.download_blob().readall()
+
+        # chunksize makes pandas parse incrementally instead of loading every
+        # row into memory before we only keep the first `rows` of them.
+        reader = pd.read_sas(io.BytesIO(raw), format="sas7bdat", chunksize=rows)
+        chunk = next(reader)
+
+        records = [
+            {str(col): _json_safe(v) for col, v in row.items()}
+            for row in chunk.to_dict(orient="records")
+        ]
+        return {
+            "filename": filename,
+            "columns": [str(c) for c in chunk.columns],
+            "rows_returned": len(records),
+            "rows": records,
+        }
+    except Exception as e:
+        return {"error": f"Could not read {filename!r}: {e}"}
