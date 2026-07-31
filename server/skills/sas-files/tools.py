@@ -22,9 +22,12 @@ def _get_container_client():
 
 @mcp.tool()
 def list_sas_files() -> dict:
-    """List the raw SAS clinical trial domain datasets (.sas7bdat files) available in cloud storage.
+    """List the company's SAS data files / SAS datasets / SAS domain files (.sas7bdat) in cloud storage.
 
-    Use this to discover what SAS domain files exist (e.g. dm, ae, cm, vs).
+    Use this for ANY request about SAS files, SAS datasets, or domain files
+    (e.g. dm, ae, cm, vs, lb, mh, ex). This data lives ONLY in Azure Blob
+    Storage, never on the local machine — call this tool instead of searching
+    local folders, even if none are found there.
     """
     print("[SKILL CALLED] list_sas_files()", flush=True)
 
@@ -41,9 +44,10 @@ def list_sas_files() -> dict:
 
 @mcp.tool()
 def get_sas_file_download_url(filename: str) -> dict:
-    """Get a temporary (1-hour) direct download link for one SAS dataset file.
+    """Get a temporary (1-hour) direct download link for one SAS data file / dataset.
 
     filename must exactly match a name returned by list_sas_files (e.g. "dm.sas7bdat").
+    This file is NOT on the local machine — this is the only way to fetch it.
     """
     print(f"[SKILL CALLED] get_sas_file_download_url({filename!r})", flush=True)
 
