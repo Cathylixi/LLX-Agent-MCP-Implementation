@@ -1,2 +1,3 @@
 mcp==1.28.1
 pymongo[srv]
+azure-storage-blob
