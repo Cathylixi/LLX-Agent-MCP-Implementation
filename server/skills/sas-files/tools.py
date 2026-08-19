@@ -22,12 +22,13 @@ def _get_container_client():
 
 @mcp.tool()
 def list_sas_files() -> dict:
-    """List the company's SAS data files / SAS datasets / SAS domain files (.sas7bdat) in cloud storage.
+    """List ALL company files in cloud storage: SAS datasets (.sas7bdat) AND documents like CRFs (.pdf).
 
-    Use this for ANY request about SAS files, SAS datasets, or domain files
-    (e.g. dm, ae, cm, vs, lb, mh, ex). This data lives ONLY in Azure Blob
-    Storage, never on the local machine — call this tool instead of searching
-    local folders, even if none are found there.
+    Use this for ANY request about SAS files, SAS datasets, domain files
+    (e.g. dm, ae, cm, vs, lb, mh, ex), CRFs, or study documents. Files are
+    organized by study in subfolders (e.g. "SPI-611/dm.sas7bdat"). This data
+    lives ONLY in Azure Blob Storage, never on the local machine — call this
+    tool instead of searching local folders, even if none are found there.
     """
     print("[SKILL CALLED] list_sas_files()", flush=True)
 
@@ -44,9 +45,9 @@ def list_sas_files() -> dict:
 
 @mcp.tool()
 def get_sas_file_download_url(filename: str) -> dict:
-    """Get a temporary (1-hour) direct download link for one SAS data file / dataset.
+    """Get a temporary (1-hour) direct download link for one file (SAS dataset, CRF PDF, etc).
 
-    filename must exactly match a name returned by list_sas_files (e.g. "dm.sas7bdat").
+    filename must exactly match a name returned by list_sas_files (e.g. "dm.sas7bdat" or "SPI-611/acrf.pdf").
     This file is NOT on the local machine — this is the only way to fetch it.
     """
     print(f"[SKILL CALLED] get_sas_file_download_url({filename!r})", flush=True)
@@ -129,6 +130,53 @@ def preview_sas_file(filename: str, rows: int = 20) -> dict:
             "columns": [str(c) for c in chunk.columns],
             "rows_returned": len(records),
             "rows": records,
+        }
+    except Exception as e:
+        return {"error": f"Could not read {filename!r}: {e}"}
+
+
+@mcp.tool()
+def read_pdf_text(filename: str, pages: str = None) -> dict:
+    """Read the full text content of a PDF document in cloud storage (e.g. a CRF).
+
+    Use this for any request to read/see what's inside a PDF (e.g. "acrf.pdf")
+    — this is a document, not a SAS dataset, so preview_sas_file won't work on
+    it. By default this returns text from EVERY page. If the document turns
+    out to be too large for one response, pass `pages` as a 1-indexed range
+    like "1-20" to read just that slice, then call again with the next range
+    (check `total_pages` in the response to know when to stop).
+    filename must exactly match a name returned by list_sas_files.
+    """
+    print(f"[SKILL CALLED] read_pdf_text({filename!r}, pages={pages!r})", flush=True)
+
+    container, error = _get_container_client()
+    if error:
+        return {"error": error}
+
+    try:
+        import io
+
+        from pypdf import PdfReader
+
+        blob_client = container.get_blob_client(filename)
+        raw = blob_client.download_blob().readall()
+
+        reader = PdfReader(io.BytesIO(raw))
+        total_pages = len(reader.pages)
+
+        start, end = 0, total_pages
+        if pages:
+            bounds = pages.split("-")
+            start = max(0, int(bounds[0]) - 1)
+            end = min(total_pages, int(bounds[1]) if len(bounds) > 1 else start + 1)
+
+        page_texts = [reader.pages[i].extract_text() or "" for i in range(start, end)]
+
+        return {
+            "filename": filename,
+            "total_pages": total_pages,
+            "pages_returned": f"{start + 1}-{end}",
+            "text": "\n\n".join(page_texts),
         }
     except Exception as e:
         return {"error": f"Could not read {filename!r}: {e}"}
