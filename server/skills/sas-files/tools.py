@@ -91,18 +91,33 @@ def _json_safe(value):
 
 
 @mcp.tool()
-def preview_sas_file(filename: str, rows: int = 20) -> dict:
-    """Read the actual contents of a SAS data file: its column names and the first N rows.
+def describe_sas_file(filename: str, rows: int = 20, start_row: int = 0) -> dict:
+    """Get the full structure of a SAS dataset PLUS a page of its actual row data.
 
-    Use this whenever the user wants to see what's INSIDE a SAS file (not just
-    its name/size) — e.g. "what columns does dm have", "show me some ae rows".
-    filename must exactly match a name returned by list_sas_files. The file is
-    read on the server and only the requested rows are returned — the full
-    file never has to be downloaded locally.
+    Use this for ANY request to see what's INSIDE a SAS file — variable
+    names, labels, types, total row/column counts, and real data values
+    (e.g. "what columns does dm have", "what's dm's data dictionary", "show
+    me some ae rows", "how many rows does adae have").
+
+    - `variables`, `row_count`, and `column_count` describe the ENTIRE file —
+      these are never truncated, since metadata is cheap to read regardless
+      of file size.
+    - Actual row data IS bounded per call (`rows`, default 20, max 500) —
+      one response cannot hold an entire large dataset (message-size limits).
+      To see more of the data, call again with `start_row` advanced by
+      however many rows you've already seen (e.g. start_row=500 for the next
+      batch) and keep going until you've covered `row_count` rows total.
+
+    filename must exactly match a name returned by list_sas_files. The file
+    is read on the server — it never has to be downloaded locally.
     """
-    print(f"[SKILL CALLED] preview_sas_file({filename!r}, rows={rows!r})", flush=True)
+    print(
+        f"[SKILL CALLED] describe_sas_file({filename!r}, rows={rows!r}, start_row={start_row!r})",
+        flush=True,
+    )
 
-    rows = max(1, min(rows, 500))  # keep responses (and server memory) bounded
+    rows = max(1, min(rows, 500))  # keep the row-data part of the response bounded
+    start_row = max(0, start_row)
 
     container, error = _get_container_client()
     if error:
@@ -116,20 +131,44 @@ def preview_sas_file(filename: str, rows: int = 20) -> dict:
         blob_client = container.get_blob_client(filename)
         raw = blob_client.download_blob().readall()
 
-        # chunksize makes pandas parse incrementally instead of loading every
-        # row into memory before we only keep the first `rows` of them.
-        reader = pd.read_sas(io.BytesIO(raw), format="sas7bdat", chunksize=rows)
-        chunk = next(reader)
+        # A single chunksize read gets us both: the reader's header metadata
+        # (row_count/column_count/column_labels, parsed up front regardless
+        # of chunksize) and, from the chunk itself, real dtypes + the row
+        # window we need. sas7bdat isn't randomly seekable, so reaching
+        # start_row still means reading (and discarding) everything before it.
+        reader = pd.read_sas(io.BytesIO(raw), format="sas7bdat", chunksize=start_row + rows)
+        chunk = next(reader, None)
 
-        records = [
-            {str(col): _json_safe(v) for col, v in row.items()}
-            for row in chunk.to_dict(orient="records")
-        ]
+        total_rows = getattr(reader, "row_count", None)
+        total_columns = getattr(reader, "column_count", None)
+        labels = getattr(reader, "column_labels", None) or []
+
+        if chunk is None:
+            columns, variables, page = [], [], []
+        else:
+            columns = [str(c) for c in chunk.columns]
+            variables = [
+                {
+                    "name": name,
+                    "label": (labels[i].strip() if i < len(labels) and labels[i] else None),
+                    "type": str(chunk[name].dtype),
+                }
+                for i, name in enumerate(columns)
+            ]
+            page_df = chunk.iloc[start_row : start_row + rows]
+            page = [
+                {str(col): _json_safe(v) for col, v in row.items()}
+                for row in page_df.to_dict(orient="records")
+            ]
+
         return {
             "filename": filename,
-            "columns": [str(c) for c in chunk.columns],
-            "rows_returned": len(records),
-            "rows": records,
+            "row_count": total_rows,
+            "column_count": total_columns if total_columns is not None else len(columns),
+            "variables": variables,
+            "start_row": start_row,
+            "rows_returned": len(page),
+            "rows": page,
         }
     except Exception as e:
         return {"error": f"Could not read {filename!r}: {e}"}
@@ -140,8 +179,8 @@ def read_pdf_text(filename: str, pages: str = None) -> dict:
     """Read the full text content of a PDF document in cloud storage (e.g. a CRF).
 
     Use this for any request to read/see what's inside a PDF (e.g. "acrf.pdf")
-    — this is a document, not a SAS dataset, so preview_sas_file won't work on
-    it. By default this returns text from EVERY page. If the document turns
+    — this is a document, not a SAS dataset, so describe_sas_file won't work
+    on it. By default this returns text from EVERY page. If the document turns
     out to be too large for one response, pass `pages` as a 1-indexed range
     like "1-20" to read just that slice, then call again with the next range
     (check `total_pages` in the response to know when to stop).

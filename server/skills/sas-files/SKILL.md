@@ -17,10 +17,15 @@ search local folders first.
 Do this:
 1. Call `list_sas_files` to get the real, live list of files (all types,
    across all study subfolders) and their sizes.
-2. For a `.sas7bdat` file — if the user wants to SEE what's inside (columns,
-   sample rows, "what does dm look like"), call `preview_sas_file` with the
-   exact filename from step 1 and how many rows they want (default 20, max
-   500). Never guess or fabricate what a domain "probably" contains.
+2. For a `.sas7bdat` file — if the user wants to SEE what's inside (variable
+   names/labels/types, a data dictionary, row counts, sample or specific
+   rows, "what does dm look like"), call `describe_sas_file` with the exact
+   filename from step 1. `variables`/`row_count`/`column_count` in the
+   response always describe the WHOLE file (never truncated). Row data is
+   paginated (`rows`, `start_row`) — to see more than the first page, call
+   again with `start_row` advanced past what you've already seen, and keep
+   going until you've covered `row_count` rows. Never guess or fabricate what
+   a domain "probably" contains — everything must come from this tool.
 3. For a `.pdf` file (e.g. a CRF) — if the user wants to read its contents,
    call `read_pdf_text` with the exact filename from step 1. It returns text
    from every page by default; if the file is too large for one response, it
