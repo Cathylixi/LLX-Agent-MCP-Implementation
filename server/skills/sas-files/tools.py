@@ -176,14 +176,21 @@ def describe_sas_file(filename: str, rows: int = 20, start_row: int = 0) -> dict
 
 @mcp.tool()
 def read_pdf_text(filename: str, pages: str = None) -> dict:
-    """Read the full text content of a PDF document in cloud storage (e.g. a CRF).
+    """Read a PDF's text WITH each text block's position on the page (x0,y0,x1,y1 in points).
 
     Use this for any request to read/see what's inside a PDF (e.g. "acrf.pdf")
     — this is a document, not a SAS dataset, so describe_sas_file won't work
-    on it. By default this returns text from EVERY page. If the document turns
-    out to be too large for one response, pass `pages` as a 1-indexed range
-    like "1-20" to read just that slice, then call again with the next range
-    (check `total_pages` in the response to know when to stop).
+    on it. Positions matter for documents like an annotated CRF (aCRF), where
+    an SDTM domain/variable annotation is printed physically NEAR the field it
+    applies to but is not necessarily adjacent to it in plain reading order —
+    use each block's bbox to judge which annotation belongs to which field by
+    proximity (e.g. same page, closest y, or aligned x), don't assume the
+    block that happens to come right after a question in the list is its
+    annotation.
+
+    By default reads every page. If too large for one response, pass `pages`
+    as a 1-indexed range like "1-20" to read just that slice, then call again
+    with the next range (check `total_pages` to know when to stop).
     filename must exactly match a name returned by list_sas_files.
     """
     print(f"[SKILL CALLED] read_pdf_text({filename!r}, pages={pages!r})", flush=True)
@@ -195,13 +202,13 @@ def read_pdf_text(filename: str, pages: str = None) -> dict:
     try:
         import io
 
-        from pypdf import PdfReader
+        import fitz  # PyMuPDF
 
         blob_client = container.get_blob_client(filename)
         raw = blob_client.download_blob().readall()
 
-        reader = PdfReader(io.BytesIO(raw))
-        total_pages = len(reader.pages)
+        doc = fitz.open(stream=raw, filetype="pdf")
+        total_pages = doc.page_count
 
         start, end = 0, total_pages
         if pages:
@@ -209,13 +216,29 @@ def read_pdf_text(filename: str, pages: str = None) -> dict:
             start = max(0, int(bounds[0]) - 1)
             end = min(total_pages, int(bounds[1]) if len(bounds) > 1 else start + 1)
 
-        page_texts = [reader.pages[i].extract_text() or "" for i in range(start, end)]
+        pages_out = []
+        for i in range(start, end):
+            blocks = doc[i].get_text("blocks")  # (x0, y0, x1, y1, text, block_no, block_type)
+            pages_out.append(
+                {
+                    "page": i + 1,
+                    "blocks": [
+                        {
+                            "bbox": [round(b[0], 1), round(b[1], 1), round(b[2], 1), round(b[3], 1)],
+                            "text": b[4].strip(),
+                        }
+                        for b in blocks
+                        if b[4].strip()
+                    ],
+                }
+            )
+        doc.close()
 
         return {
             "filename": filename,
             "total_pages": total_pages,
             "pages_returned": f"{start + 1}-{end}",
-            "text": "\n\n".join(page_texts),
+            "pages": pages_out,
         }
     except Exception as e:
         return {"error": f"Could not read {filename!r}: {e}"}
