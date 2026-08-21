@@ -27,16 +27,18 @@ Do this:
    going until you've covered `row_count` rows. Never guess or fabricate what
    a domain "probably" contains — everything must come from this tool.
 3. For a `.pdf` file (e.g. a CRF) — if the user wants to read its contents,
-   call `read_pdf_text` with the exact filename from step 1. It returns text
-   from every page by default, as a list of positioned blocks per page (each
-   with a `bbox` [x0,y0,x1,y1]) rather than one flat string — for documents
-   like an annotated CRF (aCRF), an SDTM domain/variable annotation sits
-   physically NEAR the field it applies to on the page, not necessarily next
-   to it in reading order, so use block positions (same page, closest y,
-   aligned x) to judge which annotation belongs to which field. If the file
-   is too large for one response, it returns a `pages_returned` range short
-   of `total_pages` — call again with the `pages` parameter (e.g. "21-40")
-   to keep reading the rest.
+   call `read_pdf_text` with the exact filename from step 1. It returns, per
+   page, TWO separate lists — `blocks` (text that's part of the page itself)
+   and `annotations` (PDF comment/markup objects, e.g. Adobe Acrobat
+   sticky-note or free-text comments, layered on top of the page) — each
+   item in both carries a `bbox` [x0,y0,x1,y1]. For documents like an
+   annotated CRF (aCRF), an SDTM domain/variable annotation sits physically
+   NEAR the field it applies to on the page (in either list), not necessarily
+   next to it in reading order — use bbox positions (same page, closest y,
+   aligned x) across both lists to judge which annotation belongs to which
+   field. If the file is too large for one response, it returns a
+   `pages_returned` range short of `total_pages` — call again with the
+   `pages` parameter (e.g. "21-40") to keep reading the rest.
 4. If the user wants the actual FILE (to download it themselves), call
    `get_sas_file_download_url` with the exact filename from step 1 to get a
    temporary (1-hour) direct download link — works for any file type.

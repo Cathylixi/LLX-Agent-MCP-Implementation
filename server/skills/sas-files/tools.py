@@ -176,17 +176,26 @@ def describe_sas_file(filename: str, rows: int = 20, start_row: int = 0) -> dict
 
 @mcp.tool()
 def read_pdf_text(filename: str, pages: str = None) -> dict:
-    """Read a PDF's text WITH each text block's position on the page (x0,y0,x1,y1 in points).
+    """Read a PDF's text AND comment/markup annotations, each with its position (bbox in points).
 
     Use this for any request to read/see what's inside a PDF (e.g. "acrf.pdf")
     — this is a document, not a SAS dataset, so describe_sas_file won't work
-    on it. Positions matter for documents like an annotated CRF (aCRF), where
-    an SDTM domain/variable annotation is printed physically NEAR the field it
-    applies to but is not necessarily adjacent to it in plain reading order —
-    use each block's bbox to judge which annotation belongs to which field by
-    proximity (e.g. same page, closest y, or aligned x), don't assume the
-    block that happens to come right after a question in the list is its
-    annotation.
+    on it. A PDF can carry text two different ways, and this tool returns
+    BOTH, separately, per page:
+    - `blocks`: text that's part of the page's own content (typed/printed on
+      the page itself).
+    - `annotations`: PDF comment/markup objects (sticky notes, highlights,
+      free-text callouts) — a separate layer overlaid on the page, e.g. added
+      via Adobe Acrobat's Comment tools. These are NOT part of `blocks`.
+
+    Positions matter for documents like an annotated CRF (aCRF), where an
+    SDTM domain/variable annotation — in either `blocks` or `annotations` —
+    is printed physically NEAR the field it applies to but is not necessarily
+    adjacent to it in plain reading order. Use bbox proximity (same page,
+    closest y, aligned x) across BOTH lists to judge which annotation belongs
+    to which field — don't assume the item that happens to come next in the
+    list is its match, and don't assume annotations only live in one of the
+    two lists.
 
     By default reads every page. If too large for one response, pass `pages`
     as a 1-indexed range like "1-20" to read just that slice, then call again
@@ -218,20 +227,33 @@ def read_pdf_text(filename: str, pages: str = None) -> dict:
 
         pages_out = []
         for i in range(start, end):
-            blocks = doc[i].get_text("blocks")  # (x0, y0, x1, y1, text, block_no, block_type)
-            pages_out.append(
+            page = doc[i]
+
+            blocks = page.get_text("blocks")  # (x0, y0, x1, y1, text, block_no, block_type)
+            block_list = [
                 {
-                    "page": i + 1,
-                    "blocks": [
-                        {
-                            "bbox": [round(b[0], 1), round(b[1], 1), round(b[2], 1), round(b[3], 1)],
-                            "text": b[4].strip(),
-                        }
-                        for b in blocks
-                        if b[4].strip()
-                    ],
+                    "bbox": [round(b[0], 1), round(b[1], 1), round(b[2], 1), round(b[3], 1)],
+                    "text": b[4].strip(),
                 }
-            )
+                for b in blocks
+                if b[4].strip()
+            ]
+
+            annotation_list = []
+            for annot in page.annots() or []:
+                content = (annot.info.get("content") or "").strip()
+                if not content:
+                    continue
+                r = annot.rect
+                annotation_list.append(
+                    {
+                        "bbox": [round(r.x0, 1), round(r.y0, 1), round(r.x1, 1), round(r.y1, 1)],
+                        "type": annot.type[1],
+                        "text": content,
+                    }
+                )
+
+            pages_out.append({"page": i + 1, "blocks": block_list, "annotations": annotation_list})
         doc.close()
 
         return {
