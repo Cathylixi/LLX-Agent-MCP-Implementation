@@ -256,6 +256,13 @@ bottom-left). Don't use one fixed box size for everything:
    `clipped_risk`; if true, widen/heighten or split only that box.
 2. `recommend_domain_box(...)` for the Domain label — prioritizes the top
    blank band; may return `needs_manual_or_second_pass_placement`.
+   **A page carrying more than one domain needs one call per domain, each with
+   a different `domain_order_index` (0, 1, 2 … in the order the domains appear
+   down the page), and the same `page_domains` list on every call.** Leaving
+   the index at its default hands every domain the identical box — a
+   Demographics page carrying both DM and MH then gets one box for two labels,
+   which cannot be applied. If two domain boxes still come back identical, that
+   is a placement issue to report, not a result to hand over.
 3. `recommend_annotation_box(...)` for Variable/context boxes — tries right,
    above, below, left, then diagonal relative to the source question.
 
