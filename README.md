@@ -82,7 +82,7 @@ Current skills:
 
 | Folder | What it does |
 |---|---|
-| `describe-database` | Explains what data is in the company Cosmos DB (NL + a `db_list_collections` code tool) |
+| `describe-database` | Explains company Cosmos DB collections and inspects how a study document is stored (NL + read-only `db_list_collections` and `db_find_documents` tools) |
 | `cost-estimation` | Protocol → full itemized clinical-data cost-estimate table (NL only) |
 | `trial-design-generation` | Protocol → TA/TE/TV/TS/TI trial-design domains per SDTMIG v3.4 (NL only) |
 | `crf-annotation` | Blank CRF → SDTM Domain/Variable mapping + annotation placement (NL + 12 code tools wrapping an embedded SDTMIG/pattern knowledge base) |
